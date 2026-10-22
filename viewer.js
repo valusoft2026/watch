@@ -11,6 +11,8 @@ const V = { lan: false, meet: null, pc: null, dc: null, joined: false, control: 
 for (const r of ROLES) { $('role').append(new Option(r, r)); $('roleTop').append(new Option(r, r)); }
 const WITNESS = /witness|deponent/i; // only the witness may ask for control
 if (P.get('r')) $('code').value = P.get('r');
+try { const rj = JSON.parse(sessionStorage.getItem('vp-rejoin') || 'null'); if (rj && !P.get('p') && normCode(rj.code) === normCode($('code').value || rj.code)) { $('code').value = rj.code; $('pass').value = rj.pass; } if (sessionStorage.getItem('vp-auto')) { sessionStorage.removeItem('vp-auto'); setTimeout(() => $('jf').requestSubmit(), 300); } } catch {}
+if (P.get('p')) { $('pass').value = P.get('p'); $('pass').closest('label').classList.add('hide'); $('code').closest('label').classList.add('hide'); setTimeout(() => $('name').focus(), 50); } // same-room link: only the name is asked
 try { const s = JSON.parse(localStorage.getItem('vp-watch') || '{}'); if (s.name) $('name').value = s.name; if (s.role) $('role').value = s.role; } catch {}
 const err = (t) => { $('err').textContent = t || ''; };
 const note = (t, ms = 3500) => { const n = $('note'); n.textContent = t; n.classList.remove('hide'); clearTimeout(note.t); note.t = setTimeout(() => n.classList.add('hide'), ms); };
@@ -27,7 +29,7 @@ $('jf').addEventListener('submit', async (e) => {
   if (code.length < 6) return err('Type the session code from your invitation.');
   if (!fullName(name)) return err('Please type your full legal name — first and last.');
   if (!pass) return err('Type the passcode from your invitation.');
-  try { localStorage.setItem('vp-watch', JSON.stringify({ name, role })); } catch {}
+  try { localStorage.setItem('vp-watch', JSON.stringify({ name, role })); sessionStorage.setItem('vp-rejoin', JSON.stringify({ code, pass })); } catch {}
   V.name = name; V.role = role; $('go').disabled = true; $('go').textContent = 'Joining…';
   V.lan = await lanDetect();
   if (!V.lan) {
@@ -64,7 +66,10 @@ function onMsg(m) {
   if (m.t === 'ended') { end('The presenter stopped sharing.'); return; }
 }
 const esc = (s) => String(s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-function end(t) { V.ended = true; try { $('vid').srcObject = null; } catch {} $('snd').classList.add('hide'); $('reqBtn').classList.add('hide'); clearInterval(V.pingT); try { V.pc?.close(); } catch {} V.meet?.close(); $('wait').classList.remove('hide'); $('wait').querySelector('b').textContent = t; $('waitT').textContent = 'You can close this page.'; $('img').removeAttribute('src'); $('tools').classList.add('hide'); setVia('ended'); }
+function end(t) {
+  // 0.9.9.248 Rejoin: the same session code and passcode work again once the presenter shares again (24 h)
+  if (!/removed/.test(t)) { let rb = document.getElementById('rejoin'); if (!rb) { rb = document.createElement('button'); rb.id = 'rejoin'; rb.className = 'btn on'; rb.textContent = 'Rejoin'; rb.style.marginTop = '10px'; rb.addEventListener('click', () => { try { sessionStorage.setItem('vp-auto', '1'); } catch {} location.reload(); }); $('wait').append(rb); } }
+  V.ended = true; try { $('vid').srcObject = null; } catch {} $('snd').classList.add('hide'); $('reqBtn').classList.add('hide'); clearInterval(V.pingT); try { V.pc?.close(); } catch {} V.meet?.close(); $('wait').classList.remove('hide'); $('wait').querySelector('b').textContent = t; $('waitT').textContent = 'You can close this page.'; $('img').removeAttribute('src'); $('tools').classList.add('hide'); setVia('ended'); }
 function setVia(v) { V.via = v; const e = $('via'); e.textContent = { direct: 'Direct', relay: 'Relay', connecting: 'Connecting', ended: 'Ended' }[v] || v; e.className = 'pill' + (v === 'direct' ? ' ok' : v === 'relay' ? ' warn' : ''); e.title = v === 'relay' ? 'The direct connection could not be made, so the picture comes through the relay — a little slower.' : ''; }
 
 async function answer(sdp) {
@@ -83,7 +88,9 @@ async function answer(sdp) {
 function waitState() {
   const s = V.st || {}; const w = $('wait');
   if (V.ended) return;
-  const empty = !s.presenting || s.empty;
+  const art = !!(s.presenting && s.idleArt && V.hasPic); // 0.9.9.248 the presenter's own clear screen (logo, name) shows, with a small "waiting" tag
+  const empty = (!s.presenting || s.empty) && !art;
+  $('waitPill').classList.toggle('hide', !art);
   w.classList.toggle('hide', !!(V.hasPic && !empty) || !!(V.mode?.video && !empty));
   if (empty || !V.hasPic) { w.querySelector('b').textContent = !s.presenting ? 'Waiting for the presentation' : 'Waiting for the next document…'; $('waitT').textContent = 'It shows here the moment the presenter puts it on the Display.'; }
   if (empty) $('img').style.visibility = 'hidden'; else $('img').style.visibility = '';
@@ -120,4 +127,7 @@ let down = false, lastMove = 0;
 $('stage').addEventListener('pointerdown', (e) => { if (!V.control || !V.mark || V.tool === 'none' || e.button !== 0) return; const p = at(e); if (!p || p.x < 0 || p.y < 0 || p.x > 1 || p.y > 1) return; down = true; $('stage').setPointerCapture(e.pointerId); send({ t: 'input', k: 'down', tool: V.tool, ...p }); e.preventDefault(); });
 $('stage').addEventListener('pointermove', (e) => { if (!down) return; const n = performance.now(); if (n - lastMove < 33) return; lastMove = n; const p = at(e); if (p) send({ t: 'input', k: 'move', tool: V.tool, x: Math.min(1, Math.max(0, p.x)), y: Math.min(1, Math.max(0, p.y)) }); });
 const up = (e) => { if (!down) return; down = false; const p = at(e) || { x: 0, y: 0 }; send({ t: 'input', k: 'up', tool: V.tool, x: Math.min(1, Math.max(0, p.x)), y: Math.min(1, Math.max(0, p.y)) }); };
+// 0.9.9.248 with control, the mouse wheel / trackpad scrolls the page on the Display (up / down, like the presenter's own wheel)
+let wheelAcc = 0, wheelT = 0;
+$('stage').addEventListener('wheel', (e) => { if (!V.control) return; e.preventDefault(); wheelAcc += e.deltaY; const n = performance.now(); if (n - wheelT < 60) return; wheelT = n; const p = at(e) || { x: 0.5, y: 0.5 }; send({ t: 'input', k: 'wheel', dy: Math.max(-600, Math.min(600, wheelAcc)), x: Math.min(1, Math.max(0, p.x)), y: Math.min(1, Math.max(0, p.y)) }); wheelAcc = 0; }, { passive: false });
 $('stage').addEventListener('pointerup', up); $('stage').addEventListener('pointercancel', up);

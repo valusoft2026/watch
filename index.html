@@ -46,6 +46,7 @@ input:focus, select:focus { border-color: var(--accent); }
 #people h3 { margin: 2px 0 8px; font-size: 13px; color: var(--mute); text-transform: uppercase; letter-spacing: .08em; }
 .pp { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-top: 1px solid #222a34; } .pp:first-of-type { border-top: 0; }
 .pp b { font-weight: 700; } .pp span { color: var(--mute); font-size: 13px; } .pp em { margin-left: auto; font-style: normal; font-size: 11px; color: var(--gold); font-weight: 800; }
+#waitPill { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); background: rgba(14,17,22,.82); border: 1px solid var(--line); color: var(--mute); padding: 7px 14px; border-radius: 999px; font-size: 13px; z-index: 3; }
 #note { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: rgba(14,17,22,.92); border: 1px solid var(--line); padding: 8px 14px; border-radius: 10px; font-size: 13px; z-index: 4; }
 @media (max-width: 600px) { #bar .t { font-size: 13px; } .btn { padding: 6px 9px; } }
 </style>
@@ -69,9 +70,10 @@ input:focus, select:focus { border-color: var(--accent); }
     <select id="roleTop" class="btn" title="Your role — change it if you picked the wrong one"><option value="">Role…</option></select>
     <button class="btn hide" id="reqBtn" title="Ask the presenter to let you turn the pages">✋ Request control</button>
     <span class="pill" id="via">Connecting</span><button class="btn" id="pplBtn">👥 <span id="pplN">0</span></button><button class="btn" id="leave">Leave</button></div>
-  <div id="stage"><img id="img" alt="The Display"><video id="vid" class="hide" playsinline muted></video><div id="wait"><b>Connecting…</b><span id="waitT">Getting the Display.</span></div><div id="people" class="hide"></div><div id="note" class="hide"></div></div>
+  <div id="stage"><img id="img" alt="The Display"><video id="vid" class="hide" playsinline muted></video><div id="wait"><b>Connecting…</b><span id="waitT">Getting the Display.</span></div><div id="people" class="hide"></div><div id="note" class="hide"></div><div id="waitPill" class="hide">Waiting for the next document…</div></div>
   <div id="tools" class="hide">
     <button class="btn" data-a="nav.prev" title="Previous page">◀ Page</button><button class="btn" data-a="nav.next" title="Next page">Page ▶</button>
+    <span class="sep"></span><button class="btn" data-a="zoom.out" title="Zoom out">－</button><button class="btn" data-a="zoom.fit" title="Whole page">Fit page</button><button class="btn" data-a="zoom.in" title="Zoom in">＋</button><span class="sep"></span>
     <form id="gotoF" class="goto"><span>Go to page</span><input id="gotoN" inputmode="numeric" autocomplete="off"><span id="gotoOf"></span><button class="btn" type="submit">Go</button></form>
     <span id="markTools" class="hide"><span class="sep"></span><button class="btn on" data-tool="none" title="Just pages">✋ None</button><button class="btn" data-tool="pen" title="Draw">✏️ Pen</button><button class="btn" data-tool="hl" title="Highlight — drag a box">🖍 Highlight</button><button class="btn" data-tool="arrow" title="Arrow — drag from tail to tip">➚ Arrow</button></span>
     <span class="sep"></span><button class="btn" id="giveBack" title="Hand control back to the presenter">Done</button>
