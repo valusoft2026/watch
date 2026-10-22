@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Valu-Present · Live Display</title>
+<style>
+:root { --bg: #0b0d11; --panel: #151920; --line: #2a313c; --fg: #eef2f6; --mute: #9aa4b2; --accent: #0a84ff; --gold: #e3b552; --live: #e0241b; --ok: #34c759; --warn: #ff9f0a; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 15px/1.4 -apple-system, "Segoe UI", system-ui, Roboto, sans-serif; overflow: hidden; }
+button, input, select { font: inherit; }
+.hide { display: none !important; }
+/* join */
+#join { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(1200px 700px at 30% 10%, #1a212b, var(--bg) 70%); }
+.card { width: min(440px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 26px 24px 22px; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+.brand { font-weight: 900; font-size: 26px; letter-spacing: -.02em; } .brand i { font-style: normal; color: var(--gold); }
+.sub { color: var(--mute); margin: 4px 0 18px; }
+label { display: block; margin: 12px 0 0; font-size: 13px; color: var(--mute); font-weight: 600; }
+input, select { width: 100%; margin-top: 5px; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0e1116; color: var(--fg); outline: none; }
+input:focus, select:focus { border-color: var(--accent); }
+.go { width: 100%; margin-top: 18px; padding: 12px; border: 0; border-radius: 11px; background: var(--accent); color: #fff; font-weight: 800; cursor: pointer; }
+.go:disabled { opacity: .55; cursor: default; }
+.err { color: #ff6b5f; font-size: 13px; min-height: 18px; margin-top: 10px; }
+.fine { color: var(--mute); font-size: 12px; margin-top: 12px; }
+/* watch */
+#watch { position: fixed; inset: 0; display: flex; flex-direction: column; }
+#bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #0e1116; border-bottom: 1px solid var(--line); min-height: 46px; }
+#bar .t { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pill { flex: none; font: 800 11px/1 system-ui, sans-serif; letter-spacing: .06em; padding: 6px 9px; border-radius: 999px; background: #222a34; color: var(--mute); text-transform: uppercase; }
+.pill.live { background: var(--live); color: #fff; } .pill.ok { background: rgba(52,199,89,.16); color: var(--ok); } .pill.warn { background: rgba(255,159,10,.16); color: var(--warn); }
+.sp { flex: 1; }
+.btn { flex: none; border: 1px solid var(--line); background: #1a1f27; color: var(--fg); border-radius: 9px; padding: 7px 11px; cursor: pointer; font-weight: 700; }
+.btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+#stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; touch-action: none; }
+#img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; user-select: none; -webkit-user-drag: none; }
+#wait { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--mute); text-align: center; padding: 16px; }
+#wait b { color: var(--fg); font-size: 18px; }
+#tools { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; padding: 8px; background: #0e1116; border-top: 1px solid var(--line); }
+#tools .sep { width: 1px; height: 24px; background: var(--line); margin: 0 4px; }
+#people { position: absolute; right: 10px; top: 54px; width: min(320px, calc(100% - 20px)); max-height: 60vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; box-shadow: 0 20px 60px rgba(0,0,0,.5); z-index: 5; }
+#people h3 { margin: 2px 0 8px; font-size: 13px; color: var(--mute); text-transform: uppercase; letter-spacing: .08em; }
+.pp { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-top: 1px solid #222a34; } .pp:first-of-type { border-top: 0; }
+.pp b { font-weight: 700; } .pp span { color: var(--mute); font-size: 13px; } .pp em { margin-left: auto; font-style: normal; font-size: 11px; color: var(--gold); font-weight: 800; }
+#note { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: rgba(14,17,22,.92); border: 1px solid var(--line); padding: 8px 14px; border-radius: 10px; font-size: 13px; z-index: 4; }
+@media (max-width: 600px) { #bar .t { font-size: 13px; } .btn { padding: 6px 9px; } }
+</style>
+</head><body>
+<div id="join">
+  <form class="card" id="jf" autocomplete="on">
+    <div class="brand">Valu<i>-</i>Present</div>
+    <div class="sub">Live Display — watch what is on the screen, as it happens.</div>
+    <label>Session code<input id="code" required placeholder="e.g. 7KQ-4MZ" autocapitalize="characters" spellcheck="false"></label>
+    <label>Your full legal name<input id="name" required placeholder="First and last name" autocomplete="name" spellcheck="false"></label>
+    <label>Role <span style="font-weight:400">(optional)</span><select id="role"><option value="">—</option></select></label>
+    <label>Passcode<input id="pass" required placeholder="From the invitation" autocomplete="off" spellcheck="false"></label>
+    <button class="go" id="go" type="submit">Join</button>
+    <div class="err" id="err"></div>
+    <div class="fine">Everyone in the session can see who is watching. Nothing is installed; the picture is sent to you encrypted.</div>
+  </form>
+</div>
+<div id="watch" class="hide">
+  <div id="bar"><span class="pill" id="live">Display</span><span class="t" id="title">Live Display</span><span class="sp"></span><span class="pill" id="via">Connecting</span><button class="btn" id="pplBtn">👥 <span id="pplN">0</span></button><button class="btn" id="leave">Leave</button></div>
+  <div id="stage"><img id="img" alt="The Display"><div id="wait"><b>Connecting…</b><span id="waitT">Getting the Display.</span></div><div id="people" class="hide"></div><div id="note" class="hide"></div></div>
+  <div id="tools" class="hide">
+    <button class="btn" data-a="nav.prev" title="Previous page">◀ Page</button><button class="btn" data-a="nav.next" title="Next page">Page ▶</button><span class="sep"></span>
+    <button class="btn on" data-tool="none" title="Just watch">✋ None</button><button class="btn" data-tool="pen" title="Draw">✏️ Pen</button><button class="btn" data-tool="hl" title="Highlight — drag a box">🖍 Highlight</button><button class="btn" data-tool="arrow" title="Arrow — drag from tail to tip">➚ Arrow</button>
+  </div>
+</div>
+<script type="module" src="./viewer.js"></script>
+</body></html>
