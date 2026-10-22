@@ -53,7 +53,9 @@ function onMsg(m) {
   if (m.t === 'rejoin') { V.joined = false; send({ t: 'hello', name: V.name, role: V.role }); return; }
   if (m.t === 'offer') { answer(m.sdp); return; }
   if (m.t === 'chunk') { V.frames.add(m); return; }
-  if (m.t === 'frame') { const u8 = V.got?.get(m.id); if (!u8) return; V.got.delete(m.id); const url = URL.createObjectURL(new Blob([u8], { type: 'image/jpeg' })); const old = V.url; V.url = url; $('img').src = url; $('img').onload = () => { if (old) URL.revokeObjectURL(old); }; V.hasPic = true; waitState(); return; }
+  if (m.t === 'frame') { const u8 = V.got?.get(m.id); if (!u8) return; V.got.delete(m.id); send({ t: 'ack', id: m.id }); const url = URL.createObjectURL(new Blob([u8], { type: 'image/jpeg' })); const old = V.url; V.url = url; $('img').src = url; $('img').onload = () => { if (old) URL.revokeObjectURL(old); layout(); }; V.hasPic = true; waitState(); return; }
+  if (m.t === 'crop') { V.crop = m.rect || null; layout(); return; }
+  if (m.t === 'hires') { V.hires = !!m.on; $('hiBtn').classList.toggle('on', V.hires); if (!m.on && m.reason === 'slow') note('HI-RES was too slow on this connection — back to standard.', 6000); if (!m.on && m.reason === 'relay') note('HI-RES needs a direct connection.', 5000); return; }
   if (m.t === 'status') { V.st = m; const L = $('live'); L.textContent = !m.presenting ? 'Not presenting' : m.blank ? 'Blank' : m.live ? 'Live' : 'Display'; L.className = 'pill' + (m.presenting && m.live && !m.blank ? ' live' : ''); waitState(); $('gotoOf').textContent = m.pages ? `of ${m.pages}` : ''; if (m.page && document.activeElement !== $('gotoN')) $('gotoN').value = m.page; return; }
   if (m.t === 'mode') { V.mode = m; window.__mode = m; showMode(); return; }
   if (m.t === 'people') { $('pplN').textContent = m.list.length; $('people').innerHTML = '<h3>Watching now</h3>' + m.list.map((p) => `<div class="pp"><b>${esc(p.name)}</b><span>${esc(p.role || '')}</span>${p.control ? '<em>CONTROL</em>' : ''}</div>`).join(''); return; }
@@ -70,7 +72,7 @@ function end(t) {
   // 0.9.9.248 Rejoin: the same session code and passcode work again once the presenter shares again (24 h)
   if (!/removed/.test(t)) { let rb = document.getElementById('rejoin'); if (!rb) { rb = document.createElement('button'); rb.id = 'rejoin'; rb.className = 'btn on'; rb.textContent = 'Rejoin'; rb.style.marginTop = '10px'; rb.addEventListener('click', () => { try { sessionStorage.setItem('vp-auto', '1'); } catch {} location.reload(); }); $('wait').append(rb); } }
   V.ended = true; try { $('vid').srcObject = null; } catch {} $('snd').classList.add('hide'); $('reqBtn').classList.add('hide'); clearInterval(V.pingT); try { V.pc?.close(); } catch {} V.meet?.close(); $('wait').classList.remove('hide'); $('wait').querySelector('b').textContent = t; $('waitT').textContent = 'You can close this page.'; $('img').removeAttribute('src'); $('tools').classList.add('hide'); setVia('ended'); }
-function setVia(v) { V.via = v; const e = $('via'); e.textContent = { direct: 'Direct', relay: 'Relay', connecting: 'Connecting', ended: 'Ended' }[v] || v; e.className = 'pill' + (v === 'direct' ? ' ok' : v === 'relay' ? ' warn' : ''); e.title = v === 'relay' ? 'The direct connection could not be made, so the picture comes through the relay — a little slower.' : ''; }
+function setVia(v) { V.via = v; $('hiBtn').classList.toggle('hide', v !== 'direct'); const e = $('via'); e.textContent = { direct: 'Direct', relay: 'Relay', connecting: 'Connecting', ended: 'Ended' }[v] || v; e.className = 'pill' + (v === 'direct' ? ' ok' : v === 'relay' ? ' warn' : ''); e.title = v === 'relay' ? 'The direct connection could not be made, so the picture comes through the relay — a little slower.' : ''; }
 
 async function answer(sdp) {
   try { V.pc?.close(); } catch {}
@@ -83,6 +85,21 @@ async function answer(sdp) {
   const body = { t: 'answer', sdp: pc.localDescription.sdp }; if (V.lan) lanSend(body); else V.meet?.send({ ...body, to: 'host' });
   setTimeout(() => { if (V.via === 'connecting' && !V.ended) setVia('relay'); }, 12000);
 }
+
+// ---------- 0.9.9.249 Fit: just the page (default) or the whole Display — the picture is placed so the chosen part fills the window
+V.fit = (() => { try { return localStorage.getItem('vp-fit') || 'page'; } catch { return 'page'; } })();
+function region() { return V.fit === 'page' && V.crop && !V.mode?.video ? V.crop : { x: 0, y: 0, w: 1, h: 1 }; }
+function layout() {
+  const st = $('stage'), pic = $('pic'), vidOn = !!V.mode?.video, el = vidOn ? $('vid') : $('img');
+  const nw = vidOn ? el.videoWidth : el.naturalWidth, nh = vidOn ? el.videoHeight : el.naturalHeight; if (!nw || !nh) return;
+  const r = region(), W = st.clientWidth, H = st.clientHeight, rw = r.w * nw, rh = r.h * nh, k = Math.min(W / rw, H / rh);
+  pic.style.width = Math.round(rw * k) + 'px'; pic.style.height = Math.round(rh * k) + 'px';
+  for (const e of [$('img'), $('vid')]) { e.style.width = Math.round(nw * k) + 'px'; e.style.height = Math.round(nh * k) + 'px'; e.style.left = Math.round(-r.x * nw * k) + 'px'; e.style.top = Math.round(-r.y * nh * k) + 'px'; }
+  for (const b of $('fitSeg').querySelectorAll('button')) b.classList.toggle('on', b.dataset.fit === V.fit);
+}
+window.addEventListener('resize', layout); $('vid').addEventListener('loadedmetadata', layout); $('vid').addEventListener('resize', layout);
+$('fitSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; V.fit = b.dataset.fit; try { localStorage.setItem('vp-fit', V.fit); } catch {} layout(); });
+$('hiBtn').addEventListener('click', () => { if (V.via !== 'direct') { note('HI-RES needs a direct connection.', 4000); return; } send({ t: 'hires', on: !V.hires }); });
 
 // ---------- what shows: the picture, live video during a clip, or "Waiting for the next document…"
 function waitState() {
@@ -97,7 +114,7 @@ function waitState() {
 }
 function showMode() {
   const m = V.mode || {}; const vid = $('vid');
-  vid.classList.toggle('hide', !m.video); $('img').classList.toggle('hide', !!m.video);
+  vid.classList.toggle('hide', !m.video); $('img').classList.toggle('hide', !!m.video); setTimeout(layout, 50);
   $('snd').classList.toggle('hide', !(m.video || m.audio));
   if (m.video || m.audio) vid.play().catch(() => {});
   if (m.relay) note('Video and sound play only on a direct connection — you see still pictures.', 7000);
@@ -122,7 +139,7 @@ function drawTools() {
   $('markTools').classList.toggle('hide', !V.mark);
   $('tools').classList.toggle('hide', !V.control); for (const b of $('tools').querySelectorAll('[data-tool]')) b.classList.toggle('on', b.dataset.tool === V.tool); $('stage').style.cursor = V.control && V.tool !== 'none' ? 'crosshair' : ''; }
 $('tools').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.a) { send({ t: 'input', k: 'action', id: b.dataset.a }); return; } if (b.dataset.tool) { V.tool = b.dataset.tool; drawTools(); } });
-const at = (e) => { const r = $('img').getBoundingClientRect(); if (!r.width) return null; return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }; };
+const at = (e) => { const r = (V.mode?.video ? $('vid') : $('img')).getBoundingClientRect(); if (!r.width) return null; return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }; }; // the whole picture, even when only the page shows
 let down = false, lastMove = 0;
 $('stage').addEventListener('pointerdown', (e) => { if (!V.control || !V.mark || V.tool === 'none' || e.button !== 0) return; const p = at(e); if (!p || p.x < 0 || p.y < 0 || p.x > 1 || p.y > 1) return; down = true; $('stage').setPointerCapture(e.pointerId); send({ t: 'input', k: 'down', tool: V.tool, ...p }); e.preventDefault(); });
 $('stage').addEventListener('pointermove', (e) => { if (!down) return; const n = performance.now(); if (n - lastMove < 33) return; lastMove = n; const p = at(e); if (p) send({ t: 'input', k: 'move', tool: V.tool, x: Math.min(1, Math.max(0, p.x)), y: Math.min(1, Math.max(0, p.y)) }); });

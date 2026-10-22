@@ -31,8 +31,11 @@ input:focus, select:focus { border-color: var(--accent); }
 .btn { flex: none; border: 1px solid var(--line); background: #1a1f27; color: var(--fg); border-radius: 9px; padding: 7px 11px; cursor: pointer; font-weight: 700; }
 .btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 #stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; touch-action: none; }
-#img, #vid { max-width: 100%; max-height: 100%; object-fit: contain; display: block; user-select: none; -webkit-user-drag: none; }
-#vid { width: 100%; height: 100%; background: #000; }
+#pic { position: relative; overflow: hidden; flex: none; }
+#img, #vid { position: absolute; left: 0; top: 0; display: block; user-select: none; -webkit-user-drag: none; max-width: none; max-height: none; }
+#vid { background: #000; }
+.seg { display: inline-flex; } .seg .btn { border-radius: 0; } .seg .btn:first-child { border-radius: 9px 0 0 9px; } .seg .btn:last-child { border-radius: 0 9px 9px 0; margin-left: -1px; }
+#hiBtn.on { background: var(--gold); color: #241400; border-color: var(--gold); }
 .goto { display: inline-flex; align-items: center; gap: 6px; margin: 0 4px; color: var(--mute); font-size: 13px; } .goto input { width: 64px; margin: 0; padding: 7px 8px; text-align: center; }
 #snd { display: inline-flex; align-items: center; gap: 6px; } #sndVol { width: 90px; margin: 0; padding: 0; accent-color: var(--accent); }
 .snd-go { background: var(--gold); color: #241400; border-color: var(--gold); }
@@ -67,10 +70,12 @@ input:focus, select:focus { border-color: var(--accent); }
 <div id="watch" class="hide">
   <div id="bar"><span class="pill" id="live">Display</span><span class="t" id="title">Live Display</span><span class="sp"></span>
     <span id="snd" class="hide"><button class="btn snd-go" id="sndGo">🔊 Click for sound</button><button class="btn hide" id="sndMute" title="Mute / unmute">🔊</button><input type="range" id="sndVol" class="hide" min="0" max="1" step="0.05" value="1" title="Volume"></span>
+    <span class="seg" id="fitSeg" title="Fit: just the page, or the whole Display"><button class="btn on" data-fit="page">Page</button><button class="btn" data-fit="screen">Screen</button></span>
+    <button class="btn" id="hiBtn" title="Sharper pages — needs a good connection (turns itself off if too slow)">HI-RES</button>
     <select id="roleTop" class="btn" title="Your role — change it if you picked the wrong one"><option value="">Role…</option></select>
     <button class="btn hide" id="reqBtn" title="Ask the presenter to let you turn the pages">✋ Request control</button>
     <span class="pill" id="via">Connecting</span><button class="btn" id="pplBtn">👥 <span id="pplN">0</span></button><button class="btn" id="leave">Leave</button></div>
-  <div id="stage"><img id="img" alt="The Display"><video id="vid" class="hide" playsinline muted></video><div id="wait"><b>Connecting…</b><span id="waitT">Getting the Display.</span></div><div id="people" class="hide"></div><div id="note" class="hide"></div><div id="waitPill" class="hide">Waiting for the next document…</div></div>
+  <div id="stage"><div id="pic"><img id="img" alt="The Display"><video id="vid" class="hide" playsinline muted></video></div><div id="wait"><b>Connecting…</b><span id="waitT">Getting the Display.</span></div><div id="people" class="hide"></div><div id="note" class="hide"></div><div id="waitPill" class="hide">Waiting for the next document…</div></div>
   <div id="tools" class="hide">
     <button class="btn" data-a="nav.prev" title="Previous page">◀ Page</button><button class="btn" data-a="nav.next" title="Next page">Page ▶</button>
     <span class="sep"></span><button class="btn" data-a="zoom.out" title="Zoom out">－</button><button class="btn" data-a="zoom.fit" title="Whole page">Fit page</button><button class="btn" data-a="zoom.in" title="Zoom in">＋</button><span class="sep"></span>
