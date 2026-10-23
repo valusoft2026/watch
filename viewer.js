@@ -8,7 +8,7 @@ const $ = (id) => document.getElementById(id);
 const P = new URLSearchParams(location.hash.slice(1));
 const vid = 'v' + crypto.getRandomValues(new Uint32Array(2)).join('').slice(0, 14);
 const V = { lan: false, meet: null, pc: null, dc: null, joined: false, control: false, tool: 'none', name: '', role: '', turn: null, frames: null, url: null, pingT: null, helloT: null, via: 'connecting' };
-for (const r of ROLES) { $('role').append(new Option(r, r)); $('roleTop').append(new Option(r, r)); }
+for (const r of ROLES) $('roles').append(new Option(r, r)); // 0.9.9.251 pick a role or type your own
 const WITNESS = /witness|deponent/i; // only the witness may ask for control
 if (P.get('r')) $('code').value = P.get('r');
 try { const rj = JSON.parse(sessionStorage.getItem('vp-rejoin') || 'null'); if (rj && !P.get('p') && normCode(rj.code) === normCode($('code').value || rj.code)) { $('code').value = rj.code; $('pass').value = rj.pass; } if (sessionStorage.getItem('vp-auto')) { sessionStorage.removeItem('vp-auto'); setTimeout(() => $('jf').requestSubmit(), 300); } } catch {}
@@ -25,7 +25,7 @@ const send = (body) => { if (V.dc?.readyState === 'open') { try { V.dc.send(JSON
 
 $('jf').addEventListener('submit', async (e) => {
   e.preventDefault(); err('');
-  const code = normCode($('code').value), name = $('name').value.trim().replace(/\s+/g, ' '), role = $('role').value, pass = $('pass').value.trim();
+  const code = normCode($('code').value), name = $('name').value.trim().replace(/\s+/g, ' '), role = $('role').value.trim().slice(0, 60), pass = $('pass').value.trim();
   if (code.length < 6) return err('Type the session code from your invitation.');
   if (!fullName(name)) return err('Please type your full legal name — first and last.');
   if (!pass) return err('Type the passcode from your invitation.');
@@ -58,7 +58,7 @@ function onMsg(m) {
   if (m.t === 'hires') { V.hires = !!m.on; $('hiBtn').classList.toggle('on', V.hires); if (!m.on && m.reason === 'slow') note('HI-RES was too slow on this connection — back to standard.', 6000); if (!m.on && m.reason === 'relay') note('HI-RES needs a direct connection.', 5000); return; }
   if (m.t === 'status') { V.st = m; const L = $('live'); L.textContent = !m.presenting ? 'Not presenting' : m.blank ? 'Blank' : m.live ? 'Live' : 'Display'; L.className = 'pill' + (m.presenting && m.live && !m.blank ? ' live' : ''); waitState(); $('gotoOf').textContent = m.pages ? `of ${m.pages}` : ''; if (m.page && document.activeElement !== $('gotoN')) $('gotoN').value = m.page; return; }
   if (m.t === 'mode') { V.mode = m; window.__mode = m; showMode(); return; }
-  if (m.t === 'people') { $('pplN').textContent = m.list.length; $('people').innerHTML = '<h3>Watching now</h3>' + m.list.map((p) => `<div class="pp"><b>${esc(p.name)}</b><span>${esc(p.role || '')}</span>${p.control ? '<em>CONTROL</em>' : ''}</div>`).join(''); return; }
+  if (m.t === 'people') { $('pplN').textContent = m.list.length; $('people').innerHTML = '<h3>Watching now</h3>' + [...m.list].sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' })).map((p) => `<div class="pp"><b>${esc(p.name)}</b><span>${esc(p.role || '')}</span>${p.control ? '<em>CONTROL</em>' : ''}</div>`).join(''); return; }
   if (m.t === 'control') { const was = V.control; V.control = !!m.on; V.mark = !!m.mark; V.asked = false; if (!V.mark) V.tool = 'none'; drawTools();
     if (V.control && !was) note(V.mark ? 'The presenter gave you control — turn pages, go to a page, or mark the exhibit.' : 'The presenter gave you control — turn pages or go to a page.', 5000);
     else if (!V.control && m.reason === 'tech') note('The presenter took over. Request control again if you need it.', 6000);
@@ -97,7 +97,7 @@ function layout() {
   for (const e of [$('img'), $('vid')]) { e.style.width = Math.round(nw * k) + 'px'; e.style.height = Math.round(nh * k) + 'px'; e.style.left = Math.round(-r.x * nw * k) + 'px'; e.style.top = Math.round(-r.y * nh * k) + 'px'; }
   for (const b of $('fitSeg').querySelectorAll('button')) b.classList.toggle('on', b.dataset.fit === V.fit);
 }
-window.addEventListener('resize', layout); $('vid').addEventListener('loadedmetadata', layout); $('vid').addEventListener('resize', layout);
+window.addEventListener('resize', layout); try { new ResizeObserver(() => layout()).observe($('stage')); } catch {} // the top bar can wrap onto two lines $('vid').addEventListener('loadedmetadata', layout); $('vid').addEventListener('resize', layout);
 $('fitSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; V.fit = b.dataset.fit; try { localStorage.setItem('vp-fit', V.fit); } catch {} layout(); });
 $('hiBtn').addEventListener('click', () => { if (V.via !== 'direct') { note('HI-RES needs a direct connection.', 4000); return; } send({ t: 'hires', on: !V.hires }); });
 
@@ -123,7 +123,8 @@ function showMode() {
 $('sndGo').addEventListener('click', () => { const v = $('vid'); v.muted = false; v.volume = +$('sndVol').value; v.play().catch(() => {}); $('sndGo').classList.add('hide'); $('sndMute').classList.remove('hide'); $('sndVol').classList.remove('hide'); $('sndMute').textContent = '🔊'; });
 $('sndMute').addEventListener('click', () => { const v = $('vid'); v.muted = !v.muted; $('sndMute').textContent = v.muted ? '🔇' : '🔊'; });
 $('sndVol').addEventListener('input', () => { const v = $('vid'); v.volume = +$('sndVol').value; if (v.muted && v.volume > 0) { v.muted = false; $('sndMute').textContent = '🔊'; } });
-$('roleTop').addEventListener('change', () => { V.role = $('roleTop').value; try { localStorage.setItem('vp-watch', JSON.stringify({ name: V.name, role: V.role })); } catch {} send({ t: 'role', role: V.role }); drawTools(); note('Your role is updated for everyone.'); });
+$('roleTop').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('roleTop').blur(); });
+$('roleTop').addEventListener('change', () => { V.role = $('roleTop').value.trim().slice(0, 60); $('roleTop').value = V.role; try { localStorage.setItem('vp-watch', JSON.stringify({ name: V.name, role: V.role })); } catch {} send({ t: 'role', role: V.role }); drawTools(); note('Your role is updated for everyone.'); });
 $('reqBtn').addEventListener('click', () => { if (V.asked || V.control) return; V.asked = true; send({ t: 'reqctl' }); drawTools(); note('Asked — waiting for the presenter.', 4000); });
 $('giveBack').addEventListener('click', () => { send({ t: 'giveback' }); });
 $('gotoF').addEventListener('submit', (e) => { e.preventDefault(); const n = parseInt($('gotoN').value, 10); if (n > 0) send({ t: 'input', k: 'goto', page: n }); });
@@ -148,3 +149,42 @@ const up = (e) => { if (!down) return; down = false; const p = at(e) || { x: 0, 
 let wheelAcc = 0, wheelT = 0;
 $('stage').addEventListener('wheel', (e) => { if (!V.control) return; e.preventDefault(); wheelAcc += e.deltaY; const n = performance.now(); if (n - wheelT < 60) return; wheelT = n; const p = at(e) || { x: 0.5, y: 0.5 }; send({ t: 'input', k: 'wheel', dy: Math.max(-600, Math.min(600, wheelAcc)), x: Math.min(1, Math.max(0, p.x)), y: Math.min(1, Math.max(0, p.y)) }); wheelAcc = 0; }, { passive: false });
 $('stage').addEventListener('pointerup', up); $('stage').addEventListener('pointercancel', up);
+
+// ---------- 0.9.9.251 floating tools: drag, size, tuck away — always kept inside the browser window
+const TB = (() => { try { return { s: 1, x: null, y: null, min: false, v: false, ...JSON.parse(localStorage.getItem('vp-tools') || '{}') }; } catch { return { s: 1, x: null, y: null, min: false }; } })();
+const tbEl = $('tools');
+function tbSave() { try { localStorage.setItem('vp-tools', JSON.stringify(TB)); } catch {} }
+function tbClamp() {
+  if (TB.x == null || tbEl.classList.contains('hide')) return;
+  const r = tbEl.getBoundingClientRect(); const W = document.documentElement.clientWidth, H = document.documentElement.clientHeight;
+  TB.x = Math.max(4, Math.min(TB.x, W - r.width - 4)); TB.y = Math.max(4, Math.min(TB.y, H - r.height - 4));
+  Object.assign(tbEl.style, { left: TB.x + 'px', top: TB.y + 'px', bottom: 'auto', transform: 'none' });
+}
+// one line across (or upright): if it doesn't fit the window, it shrinks to fit; at the smallest size it may wrap
+function tbFit() {
+  if (tbEl.classList.contains('hide')) return;
+  tbEl.classList.remove('wrap'); tbEl.style.setProperty('--ts', TB.s);
+  const W = document.documentElement.clientWidth - 16, H = document.documentElement.clientHeight - 16;
+  const need = TB.v ? tbEl.scrollHeight : tbEl.scrollWidth, room = TB.v ? H : W;
+  let k = TB.s, n = need; for (let i = 0; i < 6 && n > room && k > 0.6; i++) { k = Math.max(0.6, k * room / n * 0.98); tbEl.style.setProperty('--ts', k.toFixed(3)); n = TB.v ? tbEl.scrollHeight : tbEl.scrollWidth; }
+  if (n > room + 1) tbEl.classList.add('wrap');
+  tbClamp();
+}
+function tbApply() {
+  tbEl.classList.toggle('vert', !!TB.v); tbEl.style.setProperty('--ts', TB.s); tbEl.classList.toggle('min', !!TB.min); $('tMin').textContent = TB.min ? 'Tools ▴' : '▾';
+  if (TB.x == null) Object.assign(tbEl.style, { left: '', top: '', bottom: '', transform: '' }); requestAnimationFrame(tbFit);
+}
+$('tSm').addEventListener('click', (e) => { e.stopPropagation(); TB.s = Math.max(0.7, +(TB.s - 0.1).toFixed(2)); tbApply(); tbSave(); });
+$('tLg').addEventListener('click', (e) => { e.stopPropagation(); TB.s = Math.min(1.6, +(TB.s + 0.1).toFixed(2)); tbApply(); tbSave(); });
+$('tRot').addEventListener('click', (e) => { e.stopPropagation(); TB.v = !TB.v; if (TB.v && TB.x == null) { TB.x = 8; TB.y = 60; } tbApply(); tbSave(); });
+$('tMin').addEventListener('click', (e) => { e.stopPropagation(); TB.min = !TB.min; tbApply(); tbSave(); });
+$('tGrip').addEventListener('pointerdown', (e) => {
+  const r = tbEl.getBoundingClientRect(); const dx = e.clientX - r.left, dy = e.clientY - r.top; tbEl.classList.add('drag'); $('tGrip').setPointerCapture(e.pointerId);
+  const mv = (ev) => { TB.x = ev.clientX - dx; TB.y = ev.clientY - dy; tbClamp(); };
+  const up = () => { tbEl.classList.remove('drag'); $('tGrip').removeEventListener('pointermove', mv); tbSave(); };
+  $('tGrip').addEventListener('pointermove', mv); $('tGrip').addEventListener('pointerup', up, { once: true }); $('tGrip').addEventListener('pointercancel', up, { once: true }); e.preventDefault();
+});
+$('tGrip').addEventListener('dblclick', () => { TB.x = TB.y = null; tbApply(); tbSave(); }); // double-click the grip: back to the bottom middle
+window.addEventListener('resize', tbFit);
+{ let wasHid = tbEl.classList.contains('hide'); new MutationObserver(() => { const h = tbEl.classList.contains('hide'); if (h !== wasHid) { wasHid = h; if (!h) requestAnimationFrame(tbFit); } }).observe(tbEl, { attributes: true, attributeFilter: ['class'] }); }
+tbApply();
