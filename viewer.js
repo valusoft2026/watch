@@ -56,7 +56,7 @@ function onMsg(m) {
   if (m.t === 'frame') { const u8 = V.got?.get(m.id); if (!u8) return; V.got.delete(m.id); send({ t: 'ack', id: m.id }); const url = URL.createObjectURL(new Blob([u8], { type: 'image/jpeg' })); const old = V.url; V.url = url; $('img').src = url; $('img').onload = () => { if (old) URL.revokeObjectURL(old); layout(); }; V.hasPic = true; waitState(); return; }
   if (m.t === 'crop') { V.crop = m.rect || null; layout(); return; }
   if (m.t === 'hires') { V.hires = !!m.on; $('hiBtn').classList.toggle('on', V.hires); if (!m.on && m.reason === 'slow') note('HI-RES was too slow on this connection — back to standard.', 6000); if (!m.on && m.reason === 'relay') note('HI-RES needs a direct connection.', 5000); return; }
-  if (m.t === 'status') { V.st = m; const L = $('live'); L.textContent = !m.presenting ? 'Not presenting' : m.blank ? 'Blank' : m.live ? 'Live' : 'Display'; L.className = 'pill' + (m.presenting && m.live && !m.blank ? ' live' : ''); waitState(); $('gotoOf').textContent = m.pages ? `of ${m.pages}` : ''; if (m.page && document.activeElement !== $('gotoN')) $('gotoN').value = m.page; return; }
+  if (m.t === 'status') { V.st = m; const L = $('live'); L.textContent = !m.presenting ? 'Not presenting' : m.blank ? 'Blank' : m.live ? 'Live' : 'Display'; L.className = 'pill' + (m.presenting && m.live && !m.blank ? ' live' : ''); waitState(); drawPanes(); return; }
   if (m.t === 'mode') { V.mode = m; window.__mode = m; showMode(); return; }
   if (m.t === 'people') { $('pplN').textContent = m.list.length; $('people').innerHTML = '<h3>Watching now</h3>' + [...m.list].sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' })).map((p) => `<div class="pp"><b>${esc(p.name)}</b><span>${esc(p.role || '')}</span>${p.control ? '<em>CONTROL</em>' : ''}</div>`).join(''); return; }
   if (m.t === 'control') { const was = V.control; V.control = !!m.on; V.mark = !!m.mark; V.asked = false; if (!V.mark) V.tool = 'none'; drawTools();
@@ -96,6 +96,7 @@ function layout() {
   pic.style.width = Math.round(rw * k) + 'px'; pic.style.height = Math.round(rh * k) + 'px';
   for (const e of [$('img'), $('vid')]) { e.style.width = Math.round(nw * k) + 'px'; e.style.height = Math.round(nh * k) + 'px'; e.style.left = Math.round(-r.x * nw * k) + 'px'; e.style.top = Math.round(-r.y * nh * k) + 'px'; }
   for (const b of $('fitSeg').querySelectorAll('button')) b.classList.toggle('on', b.dataset.fit === V.fit);
+  paneHi();
 }
 window.addEventListener('resize', layout); try { new ResizeObserver(() => layout()).observe($('stage')); } catch {} // the top bar can wrap onto two lines $('vid').addEventListener('loadedmetadata', layout); $('vid').addEventListener('resize', layout);
 $('fitSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; V.fit = b.dataset.fit; try { localStorage.setItem('vp-fit', V.fit); } catch {} layout(); });
@@ -127,7 +128,7 @@ $('roleTop').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('role
 $('roleTop').addEventListener('change', () => { V.role = $('roleTop').value.trim().slice(0, 60); $('roleTop').value = V.role; try { localStorage.setItem('vp-watch', JSON.stringify({ name: V.name, role: V.role })); } catch {} send({ t: 'role', role: V.role }); drawTools(); note('Your role is updated for everyone.'); });
 $('reqBtn').addEventListener('click', () => { if (V.asked || V.control) return; V.asked = true; send({ t: 'reqctl' }); drawTools(); note('Asked — waiting for the presenter.', 4000); });
 $('giveBack').addEventListener('click', () => { send({ t: 'giveback' }); });
-$('gotoF').addEventListener('submit', (e) => { e.preventDefault(); const n = parseInt($('gotoN').value, 10); if (n > 0) send({ t: 'input', k: 'goto', page: n }); });
+$('gotoF').addEventListener('submit', (e) => { e.preventDefault(); const n = parseInt($('gotoN').value, 10); if (n > 0) send({ t: 'input', k: 'goto', page: n, ...(V.pane != null ? { pane: V.pane } : {}) }); });
 
 // ---------- top bar
 $('pplBtn').addEventListener('click', () => $('people').classList.toggle('hide'));
@@ -138,8 +139,8 @@ window.addEventListener('pagehide', () => { if (V.joined && !V.ended) send({ t: 
 function drawTools() {
   const wit = WITNESS.test(V.role || ''); const r = $('reqBtn'); r.classList.toggle('hide', !wit || V.control || V.ended); r.disabled = !!V.asked; r.textContent = V.asked ? '✋ Asked…' : '✋ Request control';
   $('markTools').classList.toggle('hide', !V.mark);
-  $('tools').classList.toggle('hide', !V.control); for (const b of $('tools').querySelectorAll('[data-tool]')) b.classList.toggle('on', b.dataset.tool === V.tool); $('stage').style.cursor = V.control && V.tool !== 'none' ? 'crosshair' : ''; }
-$('tools').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.a) { send({ t: 'input', k: 'action', id: b.dataset.a }); return; } if (b.dataset.tool) { V.tool = b.dataset.tool; drawTools(); } });
+  $('tools').classList.toggle('hide', !V.control); for (const b of $('tools').querySelectorAll('[data-tool]')) b.classList.toggle('on', b.dataset.tool === V.tool); $('stage').style.cursor = V.control && V.tool !== 'none' ? 'crosshair' : ''; try { paneHi(); } catch {} }
+$('tools').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.pane != null) { V.pane = +b.dataset.pane; drawPanes(); return; } if (b.dataset.all) { send({ t: 'input', k: 'action', id: b.dataset.all, pane: 'all' }); return; } if (b.dataset.a) { send({ t: 'input', k: 'action', id: b.dataset.a, ...(V.pane != null ? { pane: V.pane } : {}) }); return; } if (b.dataset.tool) { V.tool = b.dataset.tool; drawTools(); } });
 const at = (e) => { const r = (V.mode?.video ? $('vid') : $('img')).getBoundingClientRect(); if (!r.width) return null; return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }; }; // the whole picture, even when only the page shows
 let down = false, lastMove = 0;
 $('stage').addEventListener('pointerdown', (e) => { if (!V.control || !V.mark || V.tool === 'none' || e.button !== 0) return; const p = at(e); if (!p || p.x < 0 || p.y < 0 || p.x > 1 || p.y > 1) return; down = true; $('stage').setPointerCapture(e.pointerId); send({ t: 'input', k: 'down', tool: V.tool, ...p }); e.preventDefault(); });
@@ -147,7 +148,7 @@ $('stage').addEventListener('pointermove', (e) => { if (!down) return; const n =
 const up = (e) => { if (!down) return; down = false; const p = at(e) || { x: 0, y: 0 }; send({ t: 'input', k: 'up', tool: V.tool, x: Math.min(1, Math.max(0, p.x)), y: Math.min(1, Math.max(0, p.y)) }); };
 // 0.9.9.248 with control, the mouse wheel / trackpad scrolls the page on the Display (up / down, like the presenter's own wheel)
 let wheelAcc = 0, wheelT = 0;
-$('stage').addEventListener('wheel', (e) => { if (!V.control) return; e.preventDefault(); wheelAcc += e.deltaY; const n = performance.now(); if (n - wheelT < 60) return; wheelT = n; const p = at(e) || { x: 0.5, y: 0.5 }; send({ t: 'input', k: 'wheel', dy: Math.max(-600, Math.min(600, wheelAcc)), x: Math.min(1, Math.max(0, p.x)), y: Math.min(1, Math.max(0, p.y)) }); wheelAcc = 0; }, { passive: false });
+$('stage').addEventListener('wheel', (e) => { if (!V.control) return; e.preventDefault(); wheelAcc += e.deltaY; const n = performance.now(); if (n - wheelT < 60) return; wheelT = n; const p = at(e) || { x: 0.5, y: 0.5 }; send({ t: 'input', k: 'wheel', ...(V.pane != null ? { pane: V.pane } : {}), dy: Math.max(-600, Math.min(600, wheelAcc)), x: Math.min(1, Math.max(0, p.x)), y: Math.min(1, Math.max(0, p.y)) }); wheelAcc = 0; }, { passive: false });
 $('stage').addEventListener('pointerup', up); $('stage').addEventListener('pointercancel', up);
 
 // ---------- 0.9.9.251 floating tools: drag, size, tuck away — always kept inside the browser window
@@ -191,3 +192,26 @@ $('tGrip').addEventListener('dblclick', () => { TB.x = TB.y = null; tbApply(); t
 window.addEventListener('resize', tbFit);
 { let wasHid = tbEl.classList.contains('hide'); new MutationObserver(() => { const h = tbEl.classList.contains('hide'); if (h !== wasHid) { wasHid = h; if (!h) requestAnimationFrame(tbFit); } }).observe(tbEl, { attributes: true, attributeFilter: ['class'] }); }
 tbApply();
+
+// ---------- 0.9.9.253 split Display: which pane the witness is turning (lit on the picture), or All ◀ / All ▶
+V.pane = null;
+const panesOn = () => (V.st?.panes || []).map((p, i) => (p && p.r ? { ...p, i } : null)).filter(Boolean);
+function paneNames(L) {
+  if (L.length === 2) { const [a, b] = L; const across = Math.abs(a.r.x - b.r.x) >= Math.abs(a.r.y - b.r.y); const first = across ? (a.r.x <= b.r.x ? a : b) : (a.r.y <= b.r.y ? a : b); return new Map(L.map((p) => [p.i, across ? (p === first ? 'Left' : 'Right') : (p === first ? 'Top' : 'Bottom')])); }
+  const S2 = [...L].sort((a, b) => (Math.abs(a.r.y - b.r.y) > 0.05 ? a.r.y - b.r.y : a.r.x - b.r.x)); return new Map(S2.map((p, k) => [p.i, String(k + 1)]));
+}
+function drawPanes() {
+  const L = panesOn(), multi = L.length > 1, m = V.st || {};
+  if (!multi) V.pane = null; else if (V.pane == null || !L.some((p) => p.i === V.pane)) V.pane = L.some((p) => p.i === m.active) ? m.active : L[0].i;
+  $('paneSel').classList.toggle('hide', !multi);
+  if (multi) { const N = paneNames(L); const B = $('paneBtns'); const key = L.map((p) => p.i + N.get(p.i)).join() + '|' + V.pane; if (B.dataset.k !== key) { B.dataset.k = key; const rank = (s) => ({ Left: 0, Top: 0, Right: 1, Bottom: 1 })[s] ?? +s; B.replaceChildren(...[...L].sort((a, b) => rank(N.get(a.i)) - rank(N.get(b.i))).map((p) => { const b = document.createElement('button'); b.className = 'btn' + (p.i === V.pane ? ' on' : ''); b.dataset.pane = p.i; b.textContent = N.get(p.i); b.title = `Turn the ${N.get(p.i).toLowerCase()} pane`; return b; })); } }
+  const cur = multi ? L.find((p) => p.i === V.pane) : m;
+  $('gotoOf').textContent = cur?.pages ? `of ${cur.pages}` : ''; if (cur?.page && document.activeElement !== $('gotoN')) $('gotoN').value = cur.page;
+  paneHi(); requestAnimationFrame(() => { try { tbFit(); } catch {} });
+}
+function paneHi() {
+  const el = $('paneHi'); const L = panesOn(); const p = L.length > 1 && V.control ? L.find((q) => q.i === V.pane) : null; const img = V.mode?.video ? null : $('img');
+  if (!p || !img || !img.naturalWidth) { el.classList.add('hide'); return; }
+  const W = parseFloat(img.style.width) || img.clientWidth, H = parseFloat(img.style.height) || img.clientHeight, x0 = parseFloat(img.style.left) || 0, y0 = parseFloat(img.style.top) || 0;
+  Object.assign(el.style, { left: Math.round(x0 + p.r.x * W) + 'px', top: Math.round(y0 + p.r.y * H) + 'px', width: Math.round(p.r.w * W) + 'px', height: Math.round(p.r.h * H) + 'px' }); el.classList.remove('hide');
+}

@@ -53,6 +53,11 @@ input:focus, select:focus { border-color: var(--accent); }
 #tools.vert { flex-direction: column; align-items: stretch; } /* upright by default, on the left edge under the top bar (placed by tbFit) */ #tools.vert .sep { width: auto; height: 1px; margin: 2px 0; }
 #tools.vert .goto { flex-direction: column; margin: 0; } #tools.vert .goto > span:first-child { display: none; } #tools.vert #markTools { display: flex; flex-direction: column; gap: inherit; } #tools.vert #markTools.hide { display: none; }
 #tools.vert .grip { text-align: center; }
+/* 0.9.9.253 split Display: pick the pane you are turning (lit on the picture), or All ◀ / All ▶ */
+#paneSel { display: inline-flex; align-items: center; gap: inherit; } #paneSel.hide { display: none; } #tools.vert #paneSel { flex-direction: column; align-items: stretch; }
+.plbl { color: var(--mute); font-size: .8em; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; text-align: center; }
+.pseg { display: inline-flex; gap: 3px; } #tools.vert .pseg { flex-wrap: wrap; justify-content: center; } .pseg .btn.on { background: var(--gold); border-color: var(--gold); color: #241400; }
+#paneHi { position: absolute; z-index: 2; pointer-events: none; border: 3px solid var(--gold); border-radius: 4px; box-shadow: 0 0 0 2px rgba(0,0,0,.5), 0 0 18px rgba(227,181,82,.55); }
 #tools .sep { width: 1px; height: 24px; background: var(--line); margin: 0 4px; }
 #people { position: absolute; right: 10px; top: 54px; width: min(320px, calc(100% - 20px)); max-height: 60vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; box-shadow: 0 20px 60px rgba(0,0,0,.5); z-index: 5; }
 #people h3 { margin: 2px 0 8px; font-size: 13px; color: var(--mute); text-transform: uppercase; letter-spacing: .08em; }
@@ -74,7 +79,7 @@ input:focus, select:focus { border-color: var(--accent); }
     <label>Passcode<input id="pass" required placeholder="From the invitation" autocomplete="off" spellcheck="false"></label>
     <button class="go" id="go" type="submit">Join</button>
     <div class="err" id="err"></div>
-    <div class="fine">Everyone in the session can see who is watching. Nothing is installed; the picture is sent to you encrypted. <span style="opacity:.6">· Viewer page 0.9.9.252</span></div>
+    <div class="fine">Everyone in the session can see who is watching. Nothing is installed; the picture is sent to you encrypted. <span style="opacity:.6">· Viewer page 0.9.9.253</span></div>
   </form>
 </div>
 <div id="watch" class="hide">
@@ -85,9 +90,10 @@ input:focus, select:focus { border-color: var(--accent); }
     <input id="roleTop" class="btn" list="roles" maxlength="60" placeholder="Your role…" title="Your role — pick one or type your own, then press Enter" autocomplete="off" spellcheck="false">
     <button class="btn hide" id="reqBtn" title="Ask the presenter to let you turn the pages">✋ Request control</button>
     <span class="pill" id="via">Connecting</span><button class="btn" id="pplBtn">👥 <span id="pplN">0</span></button><button class="btn" id="leave">Leave</button></div>
-  <div id="stage"><div id="pic"><img id="img" alt="The Display"><video id="vid" class="hide" playsinline muted></video></div><div id="wait"><b>Connecting…</b><span id="waitT">Getting the Display.</span></div><div id="people" class="hide"></div><div id="note" class="hide"></div><div id="waitPill" class="hide">Waiting for the next document…</div></div>
+  <div id="stage"><div id="pic"><img id="img" alt="The Display"><div id="paneHi" class="hide"></div><video id="vid" class="hide" playsinline muted></video></div><div id="wait"><b>Connecting…</b><span id="waitT">Getting the Display.</span></div><div id="people" class="hide"></div><div id="note" class="hide"></div><div id="waitPill" class="hide">Waiting for the next document…</div></div>
   <div id="tools" class="hide">
     <span class="grip keep" id="tGrip" title="Drag to move the tools">⠿</span>
+    <span id="paneSel" class="hide" title="Which side you are turning — it is lit on the picture"><span class="plbl">Turning</span><span id="paneBtns" class="pseg"></span><button class="btn" data-all="nav.prev" title="Turn every pane back one page">All ◀</button><button class="btn" data-all="nav.next" title="Turn every pane forward one page">All ▶</button><span class="sep"></span></span>
     <button class="btn" data-a="nav.prev" title="Previous page">◀ Page</button><button class="btn" data-a="nav.next" title="Next page">Page ▶</button>
     <span class="sep"></span><button class="btn" data-a="zoom.out" title="Zoom out">－</button><button class="btn" data-a="zoom.fit" title="Whole page">Fit page</button><button class="btn" data-a="zoom.in" title="Zoom in">＋</button><span class="sep"></span>
     <form id="gotoF" class="goto"><span>Go to page</span><input id="gotoN" inputmode="numeric" autocomplete="off"><span id="gotoOf"></span><button class="btn" type="submit">Go</button></form>
