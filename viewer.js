@@ -151,23 +151,26 @@ $('stage').addEventListener('wheel', (e) => { if (!V.control) return; e.preventD
 $('stage').addEventListener('pointerup', up); $('stage').addEventListener('pointercancel', up);
 
 // ---------- 0.9.9.251 floating tools: drag, size, tuck away — always kept inside the browser window
-const TB = (() => { try { return { s: 1, x: null, y: null, min: false, v: false, ...JSON.parse(localStorage.getItem('vp-tools') || '{}') }; } catch { return { s: 1, x: null, y: null, min: false }; } })();
+const TB = (() => { try { return { s: 1, x: null, y: null, min: false, v: true, ...JSON.parse(localStorage.getItem('vp-tools2') || '{}') }; } catch { return { s: 1, x: null, y: null, min: false, v: true }; } })(); // 0.9.9.252 upright by default
 const tbEl = $('tools');
-function tbSave() { try { localStorage.setItem('vp-tools', JSON.stringify(TB)); } catch {} }
+function tbSave() { try { localStorage.setItem('vp-tools2', JSON.stringify(TB)); } catch {} }
+const barBottom = () => Math.round($('bar').getBoundingClientRect().bottom);
 function tbClamp() {
   if (TB.x == null || tbEl.classList.contains('hide')) return;
   const r = tbEl.getBoundingClientRect(); const W = document.documentElement.clientWidth, H = document.documentElement.clientHeight;
-  TB.x = Math.max(4, Math.min(TB.x, W - r.width - 4)); TB.y = Math.max(4, Math.min(TB.y, H - r.height - 4));
+  const top = barBottom() + 4; TB.x = Math.max(4, Math.min(TB.x, W - r.width - 4)); TB.y = Math.max(top, Math.min(TB.y, H - r.height - 4)); // never over the top bar
   Object.assign(tbEl.style, { left: TB.x + 'px', top: TB.y + 'px', bottom: 'auto', transform: 'none' });
 }
 // one line across (or upright): if it doesn't fit the window, it shrinks to fit; at the smallest size it may wrap
 function tbFit() {
   if (tbEl.classList.contains('hide')) return;
-  tbEl.classList.remove('wrap'); tbEl.style.setProperty('--ts', TB.s);
-  const W = document.documentElement.clientWidth - 16, H = document.documentElement.clientHeight - 16;
+  tbEl.classList.remove('wrap'); if (!tbEl.dataset.flat) tbEl.classList.toggle('vert', !!TB.v); tbEl.style.setProperty('--ts', TB.s);
+  const W = document.documentElement.clientWidth - 16, H = document.documentElement.clientHeight - barBottom() - 12;
   const need = TB.v ? tbEl.scrollHeight : tbEl.scrollWidth, room = TB.v ? H : W;
   let k = TB.s, n = need; for (let i = 0; i < 6 && n > room && k > 0.6; i++) { k = Math.max(0.6, k * room / n * 0.98); tbEl.style.setProperty('--ts', k.toFixed(3)); n = TB.v ? tbEl.scrollHeight : tbEl.scrollWidth; }
+  if (n > room + 1 && TB.v && !tbEl.dataset.flat) { tbEl.dataset.flat = '1'; tbEl.classList.remove('vert'); const sv = TB.v; TB.v = false; tbFit(); TB.v = sv; delete tbEl.dataset.flat; return; } // too short a window for upright: lie it across for now
   if (n > room + 1) tbEl.classList.add('wrap');
+  if (TB.x == null && TB.v) { const h = tbEl.getBoundingClientRect().height, b = barBottom(); Object.assign(tbEl.style, { left: '8px', top: Math.round(b + Math.max(4, (document.documentElement.clientHeight - b - h) / 2)) + 'px', bottom: 'auto', transform: 'none' }); }
   tbClamp();
 }
 function tbApply() {
@@ -176,7 +179,7 @@ function tbApply() {
 }
 $('tSm').addEventListener('click', (e) => { e.stopPropagation(); TB.s = Math.max(0.7, +(TB.s - 0.1).toFixed(2)); tbApply(); tbSave(); });
 $('tLg').addEventListener('click', (e) => { e.stopPropagation(); TB.s = Math.min(1.6, +(TB.s + 0.1).toFixed(2)); tbApply(); tbSave(); });
-$('tRot').addEventListener('click', (e) => { e.stopPropagation(); TB.v = !TB.v; if (TB.v && TB.x == null) { TB.x = 8; TB.y = 60; } tbApply(); tbSave(); });
+$('tRot').addEventListener('click', (e) => { e.stopPropagation(); TB.v = !TB.v; TB.x = TB.y = null; tbApply(); tbSave(); });
 $('tMin').addEventListener('click', (e) => { e.stopPropagation(); TB.min = !TB.min; tbApply(); tbSave(); });
 $('tGrip').addEventListener('pointerdown', (e) => {
   const r = tbEl.getBoundingClientRect(); const dx = e.clientX - r.left, dy = e.clientY - r.top; tbEl.classList.add('drag'); $('tGrip').setPointerCapture(e.pointerId);

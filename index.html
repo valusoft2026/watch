@@ -45,12 +45,12 @@ input:focus, select:focus { border-color: var(--accent); }
 #wait { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--mute); text-align: center; padding: 16px; }
 #wait b { color: var(--fg); font-size: 18px; }
 /* 0.9.9.251 floating tools: always inside the browser window — drag the ⠿ grip, A− / A+ to size, ▾ to tuck away */
-#tools { --ts: 1; position: fixed; z-index: 6; left: 50%; bottom: 12px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 16px); max-height: calc(100dvh - 24px); overflow: auto; display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: calc(6px * var(--ts)); padding: calc(6px * var(--ts)) calc(8px * var(--ts)); font-size: calc(15px * var(--ts)); white-space: nowrap; background: rgba(14,17,22,.94); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 14px 40px rgba(0,0,0,.55); touch-action: none; }
+#tools { --ts: 1; position: fixed; z-index: 6; left: 50%; bottom: 12px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 16px); max-height: calc(100dvh - 70px); overflow: auto; display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: calc(6px * var(--ts)); padding: calc(6px * var(--ts)) calc(8px * var(--ts)); font-size: calc(15px * var(--ts)); white-space: nowrap; background: rgba(14,17,22,.94); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 14px 40px rgba(0,0,0,.55); touch-action: none; }
 #tools .btn { padding: calc(7px * var(--ts)) calc(11px * var(--ts)); } #tools .goto input { width: calc(64px * var(--ts)); padding: calc(7px * var(--ts)) 6px; }
 #tools .grip { cursor: grab; color: var(--mute); padding: 4px 4px; user-select: none; font-size: 1.2em; line-height: 1; } #tools.drag .grip { cursor: grabbing; }
 #tools.min > :not(.keep) { display: none !important; } #tools.min { gap: 6px; }
 #tools .btn { flex: none; } #tools.wrap { flex-wrap: wrap; } /* only when even the smallest size can't fit one line */
-#tools.vert { flex-direction: column; align-items: stretch; } #tools.vert .sep { width: auto; height: 1px; margin: 2px 0; }
+#tools.vert { flex-direction: column; align-items: stretch; } /* upright by default, on the left edge under the top bar (placed by tbFit) */ #tools.vert .sep { width: auto; height: 1px; margin: 2px 0; }
 #tools.vert .goto { flex-direction: column; margin: 0; } #tools.vert .goto > span:first-child { display: none; } #tools.vert #markTools { display: flex; flex-direction: column; gap: inherit; } #tools.vert #markTools.hide { display: none; }
 #tools.vert .grip { text-align: center; }
 #tools .sep { width: 1px; height: 24px; background: var(--line); margin: 0 4px; }
@@ -74,7 +74,7 @@ input:focus, select:focus { border-color: var(--accent); }
     <label>Passcode<input id="pass" required placeholder="From the invitation" autocomplete="off" spellcheck="false"></label>
     <button class="go" id="go" type="submit">Join</button>
     <div class="err" id="err"></div>
-    <div class="fine">Everyone in the session can see who is watching. Nothing is installed; the picture is sent to you encrypted. <span style="opacity:.6">· Viewer page 0.9.9.251</span></div>
+    <div class="fine">Everyone in the session can see who is watching. Nothing is installed; the picture is sent to you encrypted. <span style="opacity:.6">· Viewer page 0.9.9.252</span></div>
   </form>
 </div>
 <div id="watch" class="hide">
@@ -93,7 +93,7 @@ input:focus, select:focus { border-color: var(--accent); }
     <form id="gotoF" class="goto"><span>Go to page</span><input id="gotoN" inputmode="numeric" autocomplete="off"><span id="gotoOf"></span><button class="btn" type="submit">Go</button></form>
     <span id="markTools" class="hide"><span class="sep"></span><button class="btn on" data-tool="none" title="Just pages">✋ None</button><button class="btn" data-tool="pen" title="Draw">✏️ Pen</button><button class="btn" data-tool="hl" title="Highlight — drag a box">🖍 Highlight</button><button class="btn" data-tool="arrow" title="Arrow — drag from tail to tip">➚ Arrow</button></span>
     <span class="sep"></span><button class="btn" id="giveBack" title="Hand control back to the presenter">Done</button>
-    <span class="sep"></span><button class="btn" id="tRot" title="Turn the bar: across / upright">⟲</button><button class="btn" id="tSm" title="Smaller tools">A−</button><button class="btn" id="tLg" title="Larger tools">A+</button><button class="btn keep" id="tMin" title="Tuck the tools away / bring them back">▾</button>
+    <span class="sep"></span><button class="btn" id="tRot" title="Turn the bar: upright / across">⟲</button><button class="btn" id="tSm" title="Make this tool bar smaller (the page is not changed)">Bar −</button><button class="btn" id="tLg" title="Make this tool bar larger (the page is not changed)">Bar +</button><button class="btn keep" id="tMin" title="Tuck the tools away / bring them back">▾</button>
   </div>
 </div>
 <script type="module" src="./viewer.js"></script>
