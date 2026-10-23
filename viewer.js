@@ -3,6 +3,7 @@
 // Same room: the page comes from the presenter's computer and talks to it directly.
 // Anywhere else: the page is a plain static page; it finds the presenter through public meeting points, sealed with the passcode.
 import { Meet, BROKERS, STUN, ROLES, roomKey, topicFor, normCode, fullName, Joiner } from './proto.js';
+import { lanKey, lanSeal, lanUnseal } from './lanseal.js';
 
 const $ = (id) => document.getElementById(id);
 const P = new URLSearchParams(location.hash.slice(1));
@@ -19,8 +20,9 @@ const note = (t, ms = 3500, cls = '') => { const n = $('note'); n.textContent = 
 
 // ---------- the two ways to talk to the presenter
 async function lanDetect() { if (location.protocol !== 'http:' && location.protocol !== 'https:') return false; try { const r = await fetch('/lan/hello', { cache: 'no-store' }); if (!r.ok) return false; const j = await r.json(); return !!j.lan; } catch { return false; } }
-async function lanSend(body) { try { await fetch('/lan/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vid, body }) }); } catch {} }
-async function lanPoll() { for (;;) { if (V.ended) return; try { const r = await fetch('/lan/recv?vid=' + vid, { cache: 'no-store' }); if (r.ok) { const list = await r.json(); for (const b of list) onMsg(b); } else await new Promise((x) => setTimeout(x, 1500)); } catch { await new Promise((x) => setTimeout(x, 1500)); } } }
+// iPad: same-room messages are sealed with the room key (lanseal.js) — nothing readable on the Wi-Fi
+async function lanSend(body) { if (!V.lanKey) return; try { await fetch('/lan/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vid, body: lanSeal(V.lanKey, body) }) }); } catch {} }
+async function lanPoll() { for (;;) { if (V.ended) return; try { const r = await fetch('/lan/recv?vid=' + vid, { cache: 'no-store' }); if (r.ok) { const list = await r.json(); for (const b of list) { const m = typeof b === 'string' ? lanUnseal(V.lanKey, b) : null; if (m) onMsg(m); } } else await new Promise((x) => setTimeout(x, 1500)); } catch { await new Promise((x) => setTimeout(x, 1500)); } } }
 const send = (body) => { if (V.dc?.readyState === 'open') { try { V.dc.send(JSON.stringify(body)); return; } catch {} } if (V.lan) lanSend(body); else V.meet?.send({ ...body, to: 'host' }); };
 
 $('jf').addEventListener('submit', async (e) => {
@@ -31,14 +33,14 @@ $('jf').addEventListener('submit', async (e) => {
   if (!pass) return err('Type the passcode from your invitation.');
   try { localStorage.setItem('vp-watch', JSON.stringify({ name, role })); sessionStorage.setItem('vp-rejoin', JSON.stringify({ code, pass })); } catch {}
   V.name = name; V.role = role; $('go').disabled = true; $('go').textContent = 'Joining…';
-  V.lan = await lanDetect();
+  V.lan = await lanDetect(); if (V.lan) { $('go').textContent = 'Securing…'; V.lanKey = await lanKey(code, pass); $('go').textContent = 'Joining…'; }
   if (!V.lan) {
     if (!window.isSecureContext || !crypto.subtle) { $('go').disabled = false; $('go').textContent = 'Join'; return err('Open the link exactly as it was sent (it must start with https://).'); }
     const key = await roomKey(code, pass);
     const urls = P.get('b') ? P.get('b').split(',') : BROKERS;
     V.meet = new Meet({ urls, topic: await topicFor(code), key, me: vid, onMsg: (m) => { if (m.from === 'host') onMsg(m); } });
   } else lanPoll();
-  const hello = () => send({ t: 'hello', name, role, pass: V.lan ? pass : undefined });
+  const hello = () => send({ t: 'hello', name, role, pass: V.lan ? pass : undefined, laser: 1 }); // laser: 1 = this page draws the laser itself (live, not in the pictures)
   hello(); V.helloT = setInterval(() => { if (!V.joined) hello(); }, 2500);
   setTimeout(() => { if (!V.joined) { $('go').disabled = false; $('go').textContent = 'Join'; err(V.lan ? 'No answer from the presenter. Check the passcode.' : 'No answer yet. Check the code and passcode — or the presenter has not started sharing.'); clearInterval(V.helloT); V.meet?.close(); V.meet = null; } }, 25000);
 });
@@ -54,6 +56,7 @@ function onMsg(m) {
   if (m.t === 'offer') { answer(m.sdp); return; }
   if (m.t === 'chunk') { V.frames.add(m); return; }
   if (m.t === 'frame') { const u8 = V.got?.get(m.id); if (!u8) return; V.got.delete(m.id); send({ t: 'ack', id: m.id }); const url = URL.createObjectURL(new Blob([u8], { type: 'image/jpeg' })); const old = V.url; V.url = url; $('img').src = url; $('img').onload = () => { if (old) URL.revokeObjectURL(old); layout(); }; V.hasPic = true; waitState(); return; }
+  if (m.t === 'laser') { laserDot(m); return; }
   if (m.t === 'crop') { V.crop = m.rect || null; layout(); return; }
   if (m.t === 'hires') { V.hires = !!m.on; $('hiBtn').classList.toggle('on', V.hires); if (!m.on && m.reason === 'slow') note('HI-RES was too slow on this connection — back to standard.', 6000); if (!m.on && m.reason === 'relay') note('HI-RES needs a direct connection.', 5000); return; }
   if (m.t === 'status') { V.st = m; const L = $('live'); L.textContent = !m.presenting ? 'Not presenting' : m.blank ? 'Blank' : m.live ? 'Live' : 'Display'; L.className = 'pill' + (m.presenting && m.live && !m.blank ? ' live' : ''); waitState(); drawPanes(); return; }
@@ -234,4 +237,16 @@ function paneHi() {
   if (!p || !img || !img.naturalWidth) { el.classList.add('hide'); return; }
   const W = parseFloat(img.style.width) || img.clientWidth, H = parseFloat(img.style.height) || img.clientHeight, x0 = parseFloat(img.style.left) || 0, y0 = parseFloat(img.style.top) || 0;
   Object.assign(el.style, { left: Math.round(x0 + p.r.x * W) + 'px', top: Math.round(y0 + p.r.y * H) + 'px', width: Math.round(p.r.w * W) + 'px', height: Math.round(p.r.h * H) + 'px' }); el.classList.remove('hide');
+}
+
+// ---------- the presenter's laser, live: a few bytes per move (not a new picture), drawn here over the picture
+let lzEl = null, lzT = 0;
+function laserDot(m) {
+  if (!lzEl) { lzEl = document.createElement('div'); lzEl.id = 'lz'; Object.assign(lzEl.style, { position: 'absolute', width: '18px', height: '18px', marginLeft: '-9px', marginTop: '-9px', borderRadius: '50%', background: 'radial-gradient(circle, #fff 0 18%, #ff2d2d 30% 55%, rgba(255,45,45,.35) 70%, rgba(255,45,45,0) 72%)', boxShadow: '0 0 14px 4px rgba(255,45,45,.55)', pointerEvents: 'none', zIndex: 5, display: 'none' }); document.getElementById('pic').append(lzEl); }
+  clearTimeout(lzT);
+  if (m.off || m.x == null || V.mode?.video) { lzEl.style.display = 'none'; return; }
+  const r = region(), fx = (m.x - r.x) / r.w, fy = (m.y - r.y) / r.h;
+  if (fx < 0 || fx > 1 || fy < 0 || fy > 1) { lzEl.style.display = 'none'; return; }
+  Object.assign(lzEl.style, { display: 'block', left: fx * 100 + '%', top: fy * 100 + '%' });
+  lzT = setTimeout(() => { lzEl.style.display = 'none'; }, 2500); // the presenter let go (or the connection paused)
 }
