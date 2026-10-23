@@ -15,7 +15,7 @@ try { const rj = JSON.parse(sessionStorage.getItem('vp-rejoin') || 'null'); if (
 if (P.get('p')) { $('pass').value = P.get('p'); $('pass').closest('label').classList.add('hide'); $('code').closest('label').classList.add('hide'); setTimeout(() => $('name').focus(), 50); } // same-room link: only the name is asked
 try { const s = JSON.parse(localStorage.getItem('vp-watch') || '{}'); if (s.name) $('name').value = s.name; if (s.role) $('role').value = s.role; } catch {}
 const err = (t) => { $('err').textContent = t || ''; };
-const note = (t, ms = 3500) => { const n = $('note'); n.textContent = t; n.classList.remove('hide'); clearTimeout(note.t); note.t = setTimeout(() => n.classList.add('hide'), ms); };
+const note = (t, ms = 3500, cls = '') => { const n = $('note'); n.textContent = t; n.className = cls; clearTimeout(note.t); if (ms > 0) note.t = setTimeout(() => n.classList.add('hide'), ms); }; // ms 0 = stays (0.9.9.255)
 
 // ---------- the two ways to talk to the presenter
 async function lanDetect() { if (location.protocol !== 'http:' && location.protocol !== 'https:') return false; try { const r = await fetch('/lan/hello', { cache: 'no-store' }); if (!r.ok) return false; const j = await r.json(); return !!j.lan; } catch { return false; } }
@@ -60,9 +60,9 @@ function onMsg(m) {
   if (m.t === 'mode') { V.mode = m; window.__mode = m; showMode(); return; }
   if (m.t === 'people') { $('pplN').textContent = m.list.length; $('people').innerHTML = '<h3>Watching now</h3>' + [...m.list].sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' })).map((p) => `<div class="pp"><b>${esc(p.name)}</b><span>${esc(p.role || '')}</span>${p.control ? '<em>CONTROL</em>' : ''}</div>`).join(''); return; }
   if (m.t === 'control') { const was = V.control; V.control = !!m.on; V.mark = !!m.mark; V.asked = false; if (!V.mark) V.tool = 'none'; drawTools();
-    if (V.control && !was) note(V.mark ? 'The presenter gave you control — turn pages, go to a page, or mark the exhibit.' : 'The presenter gave you control — turn pages or go to a page.', 5000);
+    if (V.control && !was) note(V.mark ? '✓ Control granted — turn pages (← →), scroll a zoomed page with the mouse wheel, go to a page, or mark the exhibit.' : '✓ Control granted — turn pages (← →), scroll a zoomed page with the mouse wheel, or go to a page.', 6000, 'ok');
     else if (!V.control && m.reason === 'tech') note('The presenter took over. Request control again if you need it.', 6000);
-    else if (!V.control && m.reason === 'denied') note('The presenter did not give control this time.', 5000);
+    else if (!V.control && m.reason === 'denied') note('✕ Request denied — you can ask again.', 6000, 'bad');
     else if (!V.control && was) note('Control was taken back.'); return; }
   if (m.t === 'removed') { end('You were removed from this session.'); return; }
   if (m.t === 'ended') { end('The presenter stopped sharing.'); return; }
@@ -126,7 +126,7 @@ $('sndMute').addEventListener('click', () => { const v = $('vid'); v.muted = !v.
 $('sndVol').addEventListener('input', () => { const v = $('vid'); v.volume = +$('sndVol').value; if (v.muted && v.volume > 0) { v.muted = false; $('sndMute').textContent = '🔊'; } });
 $('roleTop').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('roleTop').blur(); });
 $('roleTop').addEventListener('change', () => { V.role = $('roleTop').value.trim().slice(0, 60); $('roleTop').value = V.role; try { localStorage.setItem('vp-watch', JSON.stringify({ name: V.name, role: V.role })); } catch {} send({ t: 'role', role: V.role }); drawTools(); note('Your role is updated for everyone.'); });
-$('reqBtn').addEventListener('click', () => { if (V.asked || V.control) return; V.asked = true; send({ t: 'reqctl' }); drawTools(); note('Asked — waiting for the presenter.', 4000); });
+$('reqBtn').addEventListener('click', () => { if (V.asked || V.control) return; V.asked = true; send({ t: 'reqctl' }); drawTools(); note('✋ Waiting for the tech…', 0, 'wait'); });
 $('giveBack').addEventListener('click', () => { send({ t: 'giveback' }); });
 $('gotoF').addEventListener('submit', (e) => { e.preventDefault(); const n = parseInt($('gotoN').value, 10); if (n > 0) send({ t: 'input', k: 'goto', page: n, ...(V.pane != null ? { pane: V.pane } : {}) }); });
 
@@ -148,7 +148,27 @@ $('stage').addEventListener('pointermove', (e) => { if (!down) return; const n =
 const up = (e) => { if (!down) return; down = false; const p = at(e) || { x: 0, y: 0 }; send({ t: 'input', k: 'up', tool: V.tool, x: Math.min(1, Math.max(0, p.x)), y: Math.min(1, Math.max(0, p.y)) }); };
 // 0.9.9.248 with control, the mouse wheel / trackpad scrolls the page on the Display (up / down, like the presenter's own wheel)
 let wheelAcc = 0, wheelT = 0;
-$('stage').addEventListener('wheel', (e) => { if (!V.control) return; e.preventDefault(); wheelAcc += e.deltaY; const n = performance.now(); if (n - wheelT < 60) return; wheelT = n; const p = at(e) || { x: 0.5, y: 0.5 }; send({ t: 'input', k: 'wheel', ...(V.pane != null ? { pane: V.pane } : {}), dy: Math.max(-600, Math.min(600, wheelAcc)), x: Math.min(1, Math.max(0, p.x)), y: Math.min(1, Math.max(0, p.y)) }); wheelAcc = 0; }, { passive: false });
+// 0.9.9.255 wheel: zoomed → the page scrolls (Shift / trackpad sideways = left-right), whole page → a firm scroll turns it. Sent ~30×/s so it glides.
+let wheelDx = 0; const unit = (e) => (e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? 600 : 1);
+const wheelSend = (dx, dy) => { const p = { x: 0.5, y: 0.5 }; send({ t: 'input', k: 'wheel', ...(V.pane != null ? { pane: V.pane } : {}), dx: Math.max(-600, Math.min(600, dx)), dy: Math.max(-600, Math.min(600, dy)), x: p.x, y: p.y }); };
+$('stage').addEventListener('wheel', (e) => { if (!V.control) return; e.preventDefault(); const u = unit(e); let dx = e.deltaX * u, dy = e.deltaY * u; if (e.shiftKey && !dx) { dx = dy; dy = 0; } wheelAcc += dy; wheelDx += dx; const n = performance.now(); if (n - wheelT < 33) return; wheelT = n; wheelSend(wheelDx, wheelAcc); wheelAcc = 0; wheelDx = 0; }, { passive: false });
+// 0.9.9.255 keys (with control): → ↓ PgDn Space = next page (↓ scrolls when zoomed), ← ↑ PgUp = back (↑ scrolls when zoomed), Home / End = first / last page
+const zoomedNow = () => { const s = V.st || {}; const L = (s.panes || []).filter(Boolean); const p = L.length > 1 && V.pane != null ? s.panes[V.pane] : null; return p ? !!p.z : !!s.zoom; };
+window.addEventListener('keydown', (e) => {
+  if (!V.control || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || '')) return;
+  const act = (id) => send({ t: 'input', k: 'action', id, ...(V.pane != null ? { pane: V.pane } : {}) }); const z = zoomedNow(); let done = true;
+  switch (e.key) {
+    case 'ArrowRight': case 'PageDown': case ' ': act('nav.next'); break;
+    case 'ArrowLeft': case 'PageUp': act('nav.prev'); break;
+    case 'ArrowDown': if (z) wheelSend(0, 140); else act('nav.next'); break;
+    case 'ArrowUp': if (z) wheelSend(0, -140); else act('nav.prev'); break;
+    case 'Home': send({ t: 'input', k: 'goto', page: 1, ...(V.pane != null ? { pane: V.pane } : {}) }); break;
+    case 'End': { const s = V.st || {}; const p = (s.panes || []).filter(Boolean).length > 1 && V.pane != null ? s.panes[V.pane] : s; if (p?.pages) send({ t: 'input', k: 'goto', page: p.pages, ...(V.pane != null ? { pane: V.pane } : {}) }); break; }
+    case '+': case '=': act('zoom.in'); break; case '-': act('zoom.out'); break; case '0': act('zoom.fit'); break;
+    default: done = false;
+  }
+  if (done) e.preventDefault();
+});
 $('stage').addEventListener('pointerup', up); $('stage').addEventListener('pointercancel', up);
 
 // ---------- 0.9.9.251 floating tools: drag, size, tuck away — always kept inside the browser window

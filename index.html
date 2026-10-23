@@ -64,7 +64,8 @@ input:focus, select:focus { border-color: var(--accent); }
 .pp { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-top: 1px solid #222a34; } .pp:first-of-type { border-top: 0; }
 .pp b { font-weight: 700; } .pp span { color: var(--mute); font-size: 13px; } .pp em { margin-left: auto; font-style: normal; font-size: 11px; color: var(--gold); font-weight: 800; }
 #waitPill { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); background: rgba(14,17,22,.82); border: 1px solid var(--line); color: var(--mute); padding: 7px 14px; border-radius: 999px; font-size: 13px; z-index: 3; }
-#note { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: rgba(14,17,22,.92); border: 1px solid var(--line); padding: 8px 14px; border-radius: 10px; font-size: 13px; z-index: 4; }
+#note { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: rgba(14,17,22,.92); border: 1px solid var(--line); padding: 8px 14px; border-radius: 10px; font-size: 13px; z-index: 7; max-width: calc(100% - 24px); }
+#note.wait { border-color: var(--accent); color: #cfe3ff; font-weight: 700; font-size: 15px; } #note.ok { border-color: var(--ok); color: var(--ok); font-weight: 700; } #note.bad { border-color: #ff6b5f; color: #ff6b5f; font-weight: 700; } /* 0.9.9.255 control: waiting / granted / denied */
 @media (max-width: 900px) { #bar { padding: 6px 8px; } #bar .t { font-size: 13px; max-width: 40vw; } #bar .btn { padding: 6px 8px; font-size: 13px; } #roleTop { width: 130px; } .pill { padding: 5px 7px; } #sndVol { width: 70px; } }
 @media (max-width: 560px) { #bar .t { display: none; } }
 </style>
@@ -79,7 +80,7 @@ input:focus, select:focus { border-color: var(--accent); }
     <label>Passcode<input id="pass" required placeholder="From the invitation" autocomplete="off" spellcheck="false"></label>
     <button class="go" id="go" type="submit">Join</button>
     <div class="err" id="err"></div>
-    <div class="fine">Everyone in the session can see who is watching. Nothing is installed; the picture is sent to you encrypted. <span style="opacity:.6">· Viewer page 0.9.9.253</span></div>
+    <div class="fine">Everyone in the session can see who is watching. Nothing is installed; the picture is sent to you encrypted. <span style="opacity:.6">· Viewer page 0.9.9.255</span></div>
   </form>
 </div>
 <div id="watch" class="hide">
